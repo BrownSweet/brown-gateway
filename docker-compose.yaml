@@ -7,26 +7,33 @@ services:
       args:
         TZ: ${TZ}
         CONTAINER_PACKAGE_URL: ${CONTAINER_PACKAGE_URL}
-    container_name: nginx-gateway
+    container_name: business-nginx-gateway
     restart: always
     ports:
       - "480:80"
       - "4443:443"
     volumes:
-      - ./services/nginx/conf.d:/etc/nginx/conf.d
-      - ./logs/nginx:/var/log/nginx
+      - ./services/nginx/conf.d:/etc/nginx/conf.d:rw
+      - ./logs/nginx:/var/log/nginx:rw
+      - ./services/nginx/ssl:/etc/nginx/ssl:rw
+      - ./services/nginx/fastcgi-php.conf:/etc/nginx/fastcgi-php.conf:ro
+      - ./services/nginx/fastcgi_params:/etc/nginx/fastcgi_params:ro
+      - ./www:/www:rw
+    environment:
+      TZ: "$TZ"
     networks:
       - gateway-network
 
   redis:
     image: redis:6.2-alpine
+    container_name: business-redis
     restart: always
     ports:
       - "46379:6379"
     volumes:
-      - "./services/redis/config:/etc/redis"  # 配置文件
-      - "./data/redis:/data"                 # 数据文件
-      - "./logs/redis/:/var/log/redis"        # 日志文件
+      - ./services/redis/config:/etc/redis:ro  # 配置文件
+      - ./data/redis:/data:rw               # 数据文件
+      - ./logs/redis/:/var/log/redis:rw       # 日志文件
     environment:
       - "TZ=${TZ}"
     entrypoint: [ "redis-server", "/etc/redis/docker.conf", "--requirepass", "${REDIS_PASSWORD}" ]
@@ -35,11 +42,12 @@ services:
 
   mysql:
     image: mysql:${MYSQL_VERSION}
+    container_name: business-mysql
     ports:
       - "${MYSQL_HOST_PORT}:3306"
     volumes:
       - ${MYSQL_CONF_FILE}:/etc/mysql/conf.d/mysql.cnf:ro
-      - ${DATA_DIR}/mysql:/var/lib/mysql/:rw
+      - ./data/mysql:/var/lib/mysql/:rw
       - ${MYSQL_LOG_DIR}:/var/log/mysql/:rw
 
     restart: always
@@ -52,11 +60,12 @@ services:
 
   mysql5:
     image: mysql:${MYSQL5_VERSION}
+    container_name: business-mysql5
     ports:
       - "${MYSQL5_HOST_PORT}:3306"
     volumes:
       - ${MYSQL5_CONF_FILE}:/etc/mysql/conf.d/mysql.cnf:ro
-      - ${DATA_DIR}/mysql5:/var/lib/mysql/:rw
+      - ./data/mysql5:/var/lib/mysql/:rw
       - ${MYSQL5_LOG_DIR}:/var/log/mysql/:rw
     restart: always
     networks:
@@ -66,26 +75,33 @@ services:
       MYSQL_ROOT_HOST: "${MYSQL5_ROOT_HOST}"
       TZ: "$TZ"
 
-  typesetting_client:
+  typesetting-client:
+    container_name: business-typesetting-client
     build:
       context: ./services/typesetting/client
       dockerfile: Dockerfile
       args:
         TYPESETTING_CLIENT_IMAGE: ${TYPESETTING_CLIENT_IMAGE}
     volumes:
-      - ./services/typesetting/client/conf:/etc/nginx
-      - ./logs/typesetting/client:/var/log/nginx
-      - ./www/typesetting/client:/www/typesetting_client
+#      - ./services/typesetting/client/conf:/etc/nginx:rw
+      - ./logs/typesetting/client:/var/log/nginx:rw
+#      - ./www/typesetting_client:/www/typesetting_client:rw
+    networks:
+      - gateway-network
 
-  typesetting_server:
+  typesetting-server:
+    container_name: business-typesetting-server
     build:
       context: ./services/typesetting/server
       dockerfile: Dockerfile
       args:
         TYPESETTING_SERVER_IMAGE: ${TYPESETTING_SERVER_IMAGE}
     volumes:
-      - ./services/typesetting/server/conf:/etc/nginx
-      - ./www/typesetting/server:/www/typesetting
+#      - ./services/typesetting/server/conf:/etc/nginx:rw
+      - ./logs/typesetting/server:/var/log/nginx:rw
+#      - ./www/typesetting:/www/typesetting:rw
+    networks:
+      - gateway-network
 networks:
   gateway-network:
     driver: bridge
